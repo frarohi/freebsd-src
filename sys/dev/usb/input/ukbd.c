@@ -751,9 +751,10 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		}
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_FN) &&
 		    (id == sc->sc_id_apple_fn)) {
-			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn))
+			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn)) {
 				modifiers |= MOD_FN;
-				sc->sc_ndata.bitmap[key / 64] |= 1ULL << (key % 64);
+				sc->sc_ndata.bitmap[KEY_APPLE_FN / 64] |= 1ULL << (KEY_APPLE_FN % 64);
+			}
 		}
 
 		for (i = 0; i != UKBD_NKEYCODE; i++) {
