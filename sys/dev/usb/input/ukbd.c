@@ -217,6 +217,8 @@ struct ukbd_softc {
 
 #define	KEY_NONE	  0x00
 #define	KEY_ERROR	  0x01
+/* The USB keycode that will be output when the FN key is pressed on Apple kbds */
+#define KEY_APPLE_FN	  0xdf 
 
 #define	KEY_PRESS	  0
 #define	KEY_RELEASE	  0x400
@@ -401,7 +403,7 @@ static bool
 ukbd_is_modifier_key(uint32_t key)
 {
 
-	return (key >= 0xe0 && key <= 0xe7);
+	return (key=KEY_APPLE_FN||(key >= 0xe0 && key <= 0xe7));
 }
 
 static void
@@ -548,7 +550,7 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	UKBD_LOCK_ASSERT();
 
 	/* Check for modifier key changes first */
-	for (key = 0xe0; key != 0xe8; key++) {
+	for (key = 0xdf; key != 0xe8; key++) {
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
@@ -751,6 +753,7 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		    (id == sc->sc_id_apple_fn)) {
 			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn))
 				modifiers |= MOD_FN;
+				sc->sc_ndata.bitmap[key / 64] |= 1ULL << (key % 64);
 		}
 
 		for (i = 0; i != UKBD_NKEYCODE; i++) {
