@@ -218,6 +218,20 @@ struct ukbd_softc {
 #define	KEY_NONE	  0x00
 #define	KEY_ERROR	  0x01
 
+/* Modifier keys */
+#define KEY_MOD_LCTRL	  0xe0
+#define KEY_MOD_LSHFT	  0xe1	
+#define KEY_MOD_LALT	  0xe2
+#define KEY_MOD_LGUI	  0xe3
+#define KEY_MOD_RCTRL	  0xe4
+#define KEY_MOD_RSHIFT	  0xe5
+#define KEY_MOD_RALT	  0xe6
+#define KEY_MOD_RGUI	  0xe7
+/* Apple FN key is mapped to this USB keycode ('CrSel/Props') */
+#define KEY_MOD_APPLE_FN  0xa3 
+/* Apple Eject key is mapped to this USB keycode ('ExSel') */
+#define KEY_APPLE_EJECT   0xa4 
+
 #define	KEY_PRESS	  0
 #define	KEY_RELEASE	  0x400
 #define	KEY_INDEX(c)	  ((c) & 0xFF)
@@ -303,6 +317,19 @@ static const uint8_t ukbd_boot_desc[] = {
 	0x05, 0x07, 0x19, 0x00, 0x2a,
 	0xff, 0x00, 0x81, 0x00, 0xc0
 };
+
+static const uint8_t ukbd_modkey_tab[] = {
+	KEY_MOD_LCTRL,
+	KEY_MOD_LSHFT,
+	KEY_MOD_LALT,
+	KEY_MOD_LGUI,
+	KEY_MOD_RCTRL,
+	KEY_MOD_RSHIFT,
+	KEY_MOD_RALT,
+	KEY_MOD_RGUI,
+	KEY_MOD_APPLE_FN
+};
+#define	UKBD_NMODKEY	(sizeof(ukbd_modkey_tab)/sizeof(ukbd_modkey_tab[0]))
 
 static const STRUCT_USB_HOST_ID ukbd_apple_iso_models[] = {
 	/* PowerBooks Feb 2005, iBooks G4 */
@@ -398,10 +425,20 @@ ukbd_any_key_valid(struct ukbd_softc *sc)
 }
 
 static bool
-ukbd_is_modifier_key(uint32_t key)
+ukbd_is_modifier_key(uint8_t key)
 {
 
-	return (key >= 0xe0 && key <= 0xe7);
+	return (
+		key==KEY_MOD_LCTRL	||
+		key==KEY_MOD_LSHFT	||
+		key==KEY_MOD_LALT	||
+		key==KEY_MOD_LGUI	||
+		key==KEY_MOD_RCTRL	||
+		key==KEY_MOD_RSHIFT	||
+		key==KEY_MOD_RALT	||
+		key==KEY_MOD_RGUI	||
+		key==KEY_MOD_APPLE_FN
+	);
 }
 
 static void
@@ -548,7 +585,8 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	UKBD_LOCK_ASSERT();
 
 	/* Check for modifier key changes first */
-	for (key = 0xe0; key != 0xe8; key++) {
+	for (uint8_t idx = 0; idx < UKBD_NMODKEY; idx++) {
+		key = ukbd_modkey_tab[idx];
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
@@ -744,13 +782,17 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		/* scan through HID data */
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_EJECT) &&
 		    (id == sc->sc_id_apple_eject)) {
-			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_eject))
+			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_eject)) {
 				modifiers |= MOD_EJECT;
+				sc->sc_ndata.bitmap[KEY_APPLE_EJECT / 64] |= 1ULL << (KEY_APPLE_EJECT % 64);
+			}
 		}
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_FN) &&
 		    (id == sc->sc_id_apple_fn)) {
-			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn))
+			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn)) {
 				modifiers |= MOD_FN;
+				sc->sc_ndata.bitmap[KEY_MOD_APPLE_FN / 64] |= 1ULL << (KEY_MOD_APPLE_FN % 64);
+			}
 		}
 
 		for (i = 0; i != UKBD_NKEYCODE; i++) {
