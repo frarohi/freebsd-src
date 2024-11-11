@@ -403,7 +403,7 @@ static bool
 ukbd_is_modifier_key(uint32_t key)
 {
 
-	return (key=KEY_APPLE_FN||(key >= 0xe0 && key <= 0xe7));
+	return (key==KEY_APPLE_FN||(key >= 0xe0 && key <= 0xe7));
 }
 
 static void
