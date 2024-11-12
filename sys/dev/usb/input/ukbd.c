@@ -112,7 +112,6 @@ SYSCTL_INT(_hw_usb_ukbd, OID_AUTO, pollrate, CTLFLAG_RWTUN,
 #define	UKBD_EMULATE_ATSCANCODE	       1
 #define	UKBD_DRIVER_NAME          "ukbd"
 #define	UKBD_NKEYCODE                 256 /* units */
-#define	UKBD_MAXKEYCODE               UKBD_NKEYCODE-1 /* code */
 #define	UKBD_IN_BUF_SIZE  (4 * UKBD_NKEYCODE) /* scancodes */
 #define	UKBD_IN_BUF_FULL  ((UKBD_IN_BUF_SIZE / 2) - 1)	/* scancodes */
 #define	UKBD_NFKEY        (sizeof(fkey_tab)/sizeof(fkey_tab[0]))	/* units */
@@ -585,7 +584,7 @@ static void
 ukbd_interrupt(struct ukbd_softc *sc)
 {
 	const uint32_t now = sc->sc_time_ms;
-	uint8_t key;
+	unsigned key;
 
 	UKBD_LOCK_ASSERT();
 
@@ -606,7 +605,7 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	}
 
 	/* Check for key changes */
-	for (key = 0; key <= UKBD_MAXKEYCODE; key++) {
+	for (key = 0; key != UKBD_NKEYCODE; key++) {
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
