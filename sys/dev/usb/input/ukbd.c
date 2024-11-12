@@ -116,15 +116,9 @@ SYSCTL_INT(_hw_usb_ukbd, OID_AUTO, pollrate, CTLFLAG_RWTUN,
 #define	UKBD_IN_BUF_FULL  ((UKBD_IN_BUF_SIZE / 2) - 1)	/* scancodes */
 #define	UKBD_NFKEY        (sizeof(fkey_tab)/sizeof(fkey_tab[0]))	/* units */
 #define	UKBD_BUFFER_SIZE	      64	/* bytes */
-/* check if a key bit is set in map */
 #define	UKBD_KEY_PRESSED(map, key) ({ \
 	CTASSERT((key) >= 0 && (key) < UKBD_NKEYCODE); \
 	((map)[(key) / 64] & (1ULL << ((key) % 64))); \
-})
-/* set key bit in map */
-#define	UKBD_SET_KEY(map, key) ({ \
-	CTASSERT((key) >= 0 && (key) < UKBD_NKEYCODE); \
-	((map)[(key) / 64] |= (1ULL << ((key) % 64))); \
 })
 
 #define	MOD_EJECT	0x01
@@ -235,6 +229,8 @@ struct ukbd_softc {
 #define KEY_MOD_RGUI	  0xe7
 /* Apple FN key is mapped to this USB keycode ('CrSel/Props') */
 #define KEY_MOD_APPLE_FN  0xa3 
+/* Apple Eject key is mapped to this USB keycode ('ExSel') */
+#define KEY_APPLE_EJECT   0xa4 
 
 #define	KEY_PRESS	  0
 #define	KEY_RELEASE	  0x400
@@ -788,6 +784,7 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		    (id == sc->sc_id_apple_eject)) {
 			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_eject))
 				modifiers |= MOD_EJECT;
+				sc->sc_ndata.bitmap[KEY_APPLE_EJECT / 64] |= 1ULL << (KEY_APPLE_EJECT % 64);
 		}
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_FN) &&
 		    (id == sc->sc_id_apple_fn)) {
