@@ -588,7 +588,7 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	UKBD_LOCK_ASSERT();
 
 	/* Check for modifier key changes first */
-	for (idx = 0; idx < (sizeof(ukbd_modifier_keys)/sizeof(ukbd_modifier_keys[0])); idx++) {
+	for (uint8_t idx = 0; idx < (sizeof(ukbd_modifier_keys)/sizeof(ukbd_modifier_keys[0])); idx++) {
 		key = ukbd_modifier_keys[idx];
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
@@ -604,7 +604,7 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	}
 
 	/* Check for key changes */
-	for (key = 0; key != UKBD_NKEYCODE; key++) {
+	for (key = 0; key < UKBD_NKEYCODE; key++) {
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
