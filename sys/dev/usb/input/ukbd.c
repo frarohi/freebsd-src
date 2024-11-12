@@ -116,9 +116,15 @@ SYSCTL_INT(_hw_usb_ukbd, OID_AUTO, pollrate, CTLFLAG_RWTUN,
 #define	UKBD_IN_BUF_FULL  ((UKBD_IN_BUF_SIZE / 2) - 1)	/* scancodes */
 #define	UKBD_NFKEY        (sizeof(fkey_tab)/sizeof(fkey_tab[0]))	/* units */
 #define	UKBD_BUFFER_SIZE	      64	/* bytes */
+/* check if a key bit is set in map */
 #define	UKBD_KEY_PRESSED(map, key) ({ \
 	CTASSERT((key) >= 0 && (key) < UKBD_NKEYCODE); \
 	((map)[(key) / 64] & (1ULL << ((key) % 64))); \
+})
+/* set key bit in map */
+#define	UKBD_SET_KEY(map, key) ({ \
+	CTASSERT((key) >= 0 && (key) < UKBD_NKEYCODE); \
+	((map)[(key) / 64] |= (1ULL << ((key) % 64))); \
 })
 
 #define	MOD_EJECT	0x01
@@ -217,8 +223,18 @@ struct ukbd_softc {
 
 #define	KEY_NONE	  0x00
 #define	KEY_ERROR	  0x01
-/* The USB keycode that will be output when the FN key is pressed on Apple kbds */
-#define KEY_APPLE_FN	  0xdf 
+
+/* Modifier keys */
+#define KEY_MOD_LCTRL	  0xe0
+#define KEY_MOD_LSHFT	  0xe1	
+#define KEY_MOD_LALT	  0xe2
+#define KEY_MOD_LGUI	  0xe3
+#define KEY_MOD_RCTRL	  0xe4
+#define KEY_MOD_RSHIFT	  0xe5
+#define KEY_MOD_RALT	  0xe6
+#define KEY_MOD_RGUI	  0xe7
+/* Apple FN key is mapped to this USB keycode ('CrSel/Props') */
+#define KEY_MOD_APPLE_FN  0xa3 
 
 #define	KEY_PRESS	  0
 #define	KEY_RELEASE	  0x400
@@ -304,6 +320,18 @@ static const uint8_t ukbd_boot_desc[] = {
 	0x15, 0x00, 0x26, 0xff, 0x00,
 	0x05, 0x07, 0x19, 0x00, 0x2a,
 	0xff, 0x00, 0x81, 0x00, 0xc0
+};
+
+static const uint8_t ukbd_modifier_keys[] = {
+	KEY_MOD_LCTRL,
+	KEY_MOD_LSHFT,
+	KEY_MOD_LALT,
+	KEY_MOD_LGUI,
+	KEY_MOD_RCTRL,
+	KEY_MOD_RSHIFT,
+	KEY_MOD_RALT,
+	KEY_MOD_RGUI,
+	KEY_MOD_APPLE_FN
 };
 
 static const STRUCT_USB_HOST_ID ukbd_apple_iso_models[] = {
@@ -400,10 +428,20 @@ ukbd_any_key_valid(struct ukbd_softc *sc)
 }
 
 static bool
-ukbd_is_modifier_key(uint32_t key)
+ukbd_is_modifier_key(uint8_t key)
 {
 
-	return (key==KEY_APPLE_FN||(key >= 0xe0 && key <= 0xe7));
+	return (
+		key==KEY_MOD_LCTRL	||
+		key==KEY_MOD_LSHFT	||
+		key==KEY_MOD_LALT	||
+		key==KEY_MOD_LGUI	||
+		key==KEY_MOD_RCTRL	||
+		key==KEY_MOD_RSHIFT	||
+		key==KEY_MOD_RALT	||
+		key==KEY_MOD_RGUI	||
+		key==KEY_MOD_APPLE_FN
+	);
 }
 
 static void
@@ -545,12 +583,13 @@ static void
 ukbd_interrupt(struct ukbd_softc *sc)
 {
 	const uint32_t now = sc->sc_time_ms;
-	unsigned key;
+	uint8_t key;
 
 	UKBD_LOCK_ASSERT();
 
 	/* Check for modifier key changes first */
-	for (key = 0xdf; key != 0xe8; key++) {
+	for (idx = 0; idx < (sizeof(ukbd_modifier_keys)/sizeof(ukbd_modifier_keys[0])); idx++) {
+		key = ukbd_modifier_keys[idx];
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
@@ -753,7 +792,7 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		    (id == sc->sc_id_apple_fn)) {
 			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_fn)) {
 				modifiers |= MOD_FN;
-				sc->sc_ndata.bitmap[KEY_APPLE_FN / 64] |= 1ULL << (KEY_APPLE_FN % 64);
+				sc->sc_ndata.bitmap[KEY_MOD_APPLE_FN / 64] |= 1ULL << (KEY_MOD_APPLE_FN % 64);
 			}
 		}
 
