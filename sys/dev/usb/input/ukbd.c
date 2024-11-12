@@ -227,10 +227,12 @@ struct ukbd_softc {
 #define KEY_MOD_RSHIFT	  0xe5
 #define KEY_MOD_RALT	  0xe6
 #define KEY_MOD_RGUI	  0xe7
-/* Apple FN key is mapped to this USB keycode ('CrSel/Props') */
-#define KEY_MOD_APPLE_FN  0xa3 
-/* Apple Eject key is mapped to this USB keycode ('ExSel') */
-#define KEY_APPLE_EJECT   0xa4 
+/* Apple FN key generates this USB keycode 
+   (maps to evdev 'KEY_CALC') */
+#define KEY_MOD_APPLE_FN  0xfb 
+/* Apple Eject key generates this USB keycode 
+   (maps to evdev 'KEY_EJECTCD') */
+#define KEY_APPLE_EJECT   0xec 
 
 #define	KEY_PRESS	  0
 #define	KEY_RELEASE	  0x400
