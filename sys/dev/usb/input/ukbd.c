@@ -112,6 +112,7 @@ SYSCTL_INT(_hw_usb_ukbd, OID_AUTO, pollrate, CTLFLAG_RWTUN,
 #define	UKBD_EMULATE_ATSCANCODE	       1
 #define	UKBD_DRIVER_NAME          "ukbd"
 #define	UKBD_NKEYCODE                 256 /* units */
+#define	UKBD_MAXKEYCODE               UKBD_NKEYCODE-1 /* code */
 #define	UKBD_IN_BUF_SIZE  (4 * UKBD_NKEYCODE) /* scancodes */
 #define	UKBD_IN_BUF_FULL  ((UKBD_IN_BUF_SIZE / 2) - 1)	/* scancodes */
 #define	UKBD_NFKEY        (sizeof(fkey_tab)/sizeof(fkey_tab[0]))	/* units */
@@ -322,7 +323,7 @@ static const uint8_t ukbd_boot_desc[] = {
 	0xff, 0x00, 0x81, 0x00, 0xc0
 };
 
-static const uint8_t ukbd_modifier_keys[] = {
+static const uint8_t ukbd_modkey_tab[] = {
 	KEY_MOD_LCTRL,
 	KEY_MOD_LSHFT,
 	KEY_MOD_LALT,
@@ -333,6 +334,7 @@ static const uint8_t ukbd_modifier_keys[] = {
 	KEY_MOD_RGUI,
 	KEY_MOD_APPLE_FN
 };
+#define	UKBD_NMODKEY	(sizeof(ukbd_modkey_tab)/sizeof(ukbd_modkey_tab[0]))
 
 static const STRUCT_USB_HOST_ID ukbd_apple_iso_models[] = {
 	/* PowerBooks Feb 2005, iBooks G4 */
@@ -588,8 +590,8 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	UKBD_LOCK_ASSERT();
 
 	/* Check for modifier key changes first */
-	for (uint8_t idx = 0; idx < (sizeof(ukbd_modifier_keys)/sizeof(ukbd_modifier_keys[0])); idx++) {
-		key = ukbd_modifier_keys[idx];
+	for (uint8_t idx = 0; idx < UKBD_NMODKEY; idx++) {
+		key = ukbd_modkey_tab[idx];
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
@@ -604,7 +606,7 @@ ukbd_interrupt(struct ukbd_softc *sc)
 	}
 
 	/* Check for key changes */
-	for (key = 0; key < UKBD_NKEYCODE; key++) {
+	for (key = 0; key <= UKBD_MAXKEYCODE; key++) {
 		const uint64_t mask = 1ULL << (key % 64);
 		const uint64_t delta =
 		    sc->sc_odata.bitmap[key / 64] ^
