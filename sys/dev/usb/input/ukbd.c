@@ -782,9 +782,10 @@ ukbd_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 		/* scan through HID data */
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_EJECT) &&
 		    (id == sc->sc_id_apple_eject)) {
-			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_eject))
+			if (hid_get_data(sc->sc_buffer, len, &sc->sc_loc_apple_eject)) {
 				modifiers |= MOD_EJECT;
 				sc->sc_ndata.bitmap[KEY_APPLE_EJECT / 64] |= 1ULL << (KEY_APPLE_EJECT % 64);
+			}
 		}
 		if ((sc->sc_flags & UKBD_FLAG_APPLE_FN) &&
 		    (id == sc->sc_id_apple_fn)) {
