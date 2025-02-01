@@ -47,7 +47,7 @@ SUBDIR += ${_dwc_otg} ehci ${_musb} ohci uhci xhci ${_uss820dci} \
 	  ${_atmegadci} ${_avr32dci} ${_rsu} ${_rsufw} ${_bcm2838_xhci}
 SUBDIR += mtw ${_rum} ${_run} ${_runfw} ${_uath} upgt usie ural ${_zyd} ${_urtw}
 SUBDIR += atp cfumass uhid uhid_snes ukbd ums udbp uep wmt wsp ugold uled \
-	  usbhid
+	  usbhid fgp
 SUBDIR += ucom u3g uark ubsa ubser uchcom ucycom ufoma uftdi ugensa uipaq ulpt \
 	  umb umct umcs umodem umoscom uplcom uslcom uvisor uvscom
 SUBDIR += i2ctinyusb
