@@ -27,15 +27,14 @@
  */
 
 /*
- * 'fgp' supports the older Apple Fountain and Geyser trackpads AND
- * implements the evdev interface as a Semi-MT trackpad.
+ * 'fgp' supports the older Apple Fountain and Geyser trackpads
+ * that are not supported by wsp.
+ * It implements the evdev interface for them as a Semi-MT trackpad.
  *
- * wsp and fgp together shall provide evdev support for all versions of Apple
- * trackpads.
  * This driver reuses some code from both the atp and the wsp trackpad driver.
- * - From atp: USB interface, raw data extraction and dev driver interface
+ * - From atp: USB interface, raw data extraction, span detection,
+ *             dev driver interface
  * - From wsp: evdev interface.
- * The device specific code in this driver is written from scratch.
  *
  * code prefix naming:
  * usb: USB bus related
@@ -72,7 +71,7 @@
 
 #include <dev/evdev/evdev.h>
 #include <dev/evdev/input.h>
-#endif
+#endif /* EVDEV_SUPPORT */
 
 #ifdef USB_DEBUG_VAR
 #ifdef USB_DEBUG
@@ -188,7 +187,7 @@ SYSCTL_PROC(_hw_usb_fgp, OID_AUTO, dev_scroll_scale_factor,
 SYSCTL_UINT(_hw_usb_fgp, OID_AUTO, evdev_button_tap_and_click, CTLFLAG_RWTUN,
     &fgp_sysctl_params.evd_button_tap_and_click, FGP_EVD_BUTTON_TAP_AND_CLICK,
     "Use combined tap and click for evdev button 1-3 emulation");
-#endif
+#endif /* EVDEV_SUPPORT */
 
 #ifdef USB_DEBUG
 enum fgp_log_level {
@@ -389,7 +388,7 @@ struct fgp_softc {
 	struct evdev_dev *evd_device;
 	fgp_evd_slot evd_slots_o[FGP_EVD_MAX_SLOTS];
 	u_int evd_click_and_tap;
-#endif
+#endif /* EVDEV_SUPPORT */
 };
 
 /*
@@ -463,7 +462,7 @@ static const struct evdev_methods fgp_evd_methods = {
 	.ev_open = &fgp_evd_open,
 	.ev_close = &fgp_evd_close,
 };
-#endif
+#endif /* EVDEV_SUPPORT */
 
 static struct usb_fifo_methods fgp_dev_methods = {
 	.f_open = &fgp_dev_open,
@@ -766,7 +765,7 @@ fgp_prc_send_data(struct fgp_softc *sc)
 			evdev_sync(sc->evd_device);
 		}
 	}
-#endif
+#endif /* EVDEV_SUPPORT */
 	if (sc->fgp_io_state & FGP_STATE_DEV_OPENED) {
 		/* /dev/fgp output */
 
@@ -1318,7 +1317,7 @@ fgp_usb_attach(device_t dev)
 	if (err) {
 		goto detach;
 	}
-#endif
+#endif /* EVDEV_SUPPORT */
 
 	return (0);
 
@@ -1341,7 +1340,7 @@ fgp_usb_detach(device_t dev)
 
 #ifdef EVDEV_SUPPORT
 	evdev_free(sc->evd_device);
-#endif
+#endif /* EVDEV_SUPPORT */
 
 	usbd_transfer_unsetup(sc->usb_transfer, FGP_USB_N_TRANSFER);
 	mtx_destroy(&sc->fgp_mutex);
@@ -1603,7 +1602,7 @@ fgp_evd_close(struct evdev_dev *evdev)
 	sc->fgp_io_state &= ~FGP_STATE_EVD_OPENED;
 	return (0);
 }
-#endif
+#endif /* EVDEV_SUPPORT */
 
 static int
 fgp_dev_open(struct usb_fifo *dev_fifo, int dev_flags)
@@ -1772,7 +1771,8 @@ fgp_dev_stop_read(struct usb_fifo *dev_fifo)
 	if (sc->fgp_io_state & FGP_STATE_EVD_OPENED) {
 		return;
 	}
-#endif
+#endif /* EVDEV_SUPPORT */
+
 	fgp_usb_stop_read(sc);
 }
 
@@ -1842,6 +1842,6 @@ MODULE_DEPEND(fgp, usb, 1, 1, 1);
 MODULE_DEPEND(fgp, hid, 1, 1, 1);
 #ifdef EVDEV_SUPPORT
 MODULE_DEPEND(fgp, evdev, 1, 1, 1);
-#endif
+#endif /* EVDEV_SUPPORT */
 MODULE_VERSION(fgp, 1);
 USB_PNP_HOST_INFO(fgp_usb_models);
