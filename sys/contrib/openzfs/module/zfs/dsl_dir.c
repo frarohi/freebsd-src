@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -27,6 +28,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #include <sys/dmu.h>
@@ -272,9 +274,11 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 				err = zap_lookup(dp->dp_meta_objset,
 				    dd->dd_object, DD_FIELD_LIVELIST,
 				    sizeof (uint64_t), 1, &obj);
-				if (err == 0)
-					dsl_dir_livelist_open(dd, obj);
-				else if (err != ENOENT)
+				if (err == 0) {
+					err = dsl_dir_livelist_open(dd, obj);
+					if (err != 0)
+						goto errout;
+				} else if (err != ENOENT)
 					goto errout;
 			}
 		}
@@ -756,7 +760,7 @@ typedef enum {
 
 static enforce_res_t
 dsl_enforce_ds_ss_limits(dsl_dir_t *dd, zfs_prop_t prop,
-    cred_t *cr, proc_t *proc)
+    cred_t *cr)
 {
 	enforce_res_t enforce = ENFORCE_ALWAYS;
 	uint64_t obj;
@@ -771,16 +775,8 @@ dsl_enforce_ds_ss_limits(dsl_dir_t *dd, zfs_prop_t prop,
 	if (crgetzoneid(cr) != GLOBAL_ZONEID)
 		return (ENFORCE_ALWAYS);
 
-	/*
-	 * We are checking the saved credentials of the user process, which is
-	 * not the current process.  Note that we can't use secpolicy_zfs(),
-	 * because it only works if the cred is that of the current process (on
-	 * Linux).
-	 */
-	if (secpolicy_zfs_proc(cr, proc) == 0)
+	if (secpolicy_zfs(cr) == 0)
 		return (ENFORCE_NEVER);
-#else
-	(void) proc;
 #endif
 
 	if ((obj = dsl_dir_phys(dd)->dd_head_dataset_obj) == 0)
@@ -814,7 +810,7 @@ dsl_enforce_ds_ss_limits(dsl_dir_t *dd, zfs_prop_t prop,
  */
 int
 dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
-    dsl_dir_t *ancestor, cred_t *cr, proc_t *proc)
+    dsl_dir_t *ancestor, cred_t *cr)
 {
 	objset_t *os = dd->dd_pool->dp_meta_objset;
 	uint64_t limit, count;
@@ -846,7 +842,7 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 	 * are allowed to change the limit on the current dataset, but there
 	 * is another limit in the tree above.
 	 */
-	enforce = dsl_enforce_ds_ss_limits(dd, prop, cr, proc);
+	enforce = dsl_enforce_ds_ss_limits(dd, prop, cr);
 	if (enforce == ENFORCE_NEVER)
 		return (0);
 
@@ -890,7 +886,7 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 
 	if (dd->dd_parent != NULL)
 		err = dsl_fs_ss_limit_check(dd->dd_parent, delta, prop,
-		    ancestor, cr, proc);
+		    ancestor, cr);
 
 	return (err);
 }
@@ -1913,7 +1909,6 @@ typedef struct dsl_dir_rename_arg {
 	const char *ddra_oldname;
 	const char *ddra_newname;
 	cred_t *ddra_cred;
-	proc_t *ddra_proc;
 } dsl_dir_rename_arg_t;
 
 typedef struct dsl_valid_rename_arg {
@@ -2092,8 +2087,7 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 		}
 
 		error = dsl_dir_transfer_possible(dd->dd_parent,
-		    newparent, fs_cnt, ss_cnt, myspace,
-		    ddra->ddra_cred, ddra->ddra_proc);
+		    newparent, fs_cnt, ss_cnt, myspace, ddra->ddra_cred);
 		if (error != 0) {
 			dsl_dir_rele(newparent, FTAG);
 			dsl_dir_rele(dd, FTAG);
@@ -2210,22 +2204,27 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 int
 dsl_dir_rename(const char *oldname, const char *newname)
 {
+	cred_t *cr = CRED();
+	crhold(cr);
+
 	dsl_dir_rename_arg_t ddra;
 
 	ddra.ddra_oldname = oldname;
 	ddra.ddra_newname = newname;
-	ddra.ddra_cred = CRED();
-	ddra.ddra_proc = curproc;
+	ddra.ddra_cred = cr;
 
-	return (dsl_sync_task(oldname,
+	int err = dsl_sync_task(oldname,
 	    dsl_dir_rename_check, dsl_dir_rename_sync, &ddra,
-	    3, ZFS_SPACE_CHECK_RESERVED));
+	    3, ZFS_SPACE_CHECK_RESERVED);
+
+	crfree(cr);
+	return (err);
 }
 
 int
 dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
     uint64_t fs_cnt, uint64_t ss_cnt, uint64_t space,
-    cred_t *cr, proc_t *proc)
+    cred_t *cr)
 {
 	dsl_dir_t *ancestor;
 	int64_t adelta;
@@ -2239,11 +2238,11 @@ dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
 		return (SET_ERROR(ENOSPC));
 
 	err = dsl_fs_ss_limit_check(tdd, fs_cnt, ZFS_PROP_FILESYSTEM_LIMIT,
-	    ancestor, cr, proc);
+	    ancestor, cr);
 	if (err != 0)
 		return (err);
 	err = dsl_fs_ss_limit_check(tdd, ss_cnt, ZFS_PROP_SNAPSHOT_LIMIT,
-	    ancestor, cr, proc);
+	    ancestor, cr);
 	if (err != 0)
 		return (err);
 
@@ -2301,15 +2300,18 @@ dsl_dir_is_zapified(dsl_dir_t *dd)
 	return (doi.doi_type == DMU_OTN_ZAP_METADATA);
 }
 
-void
+int
 dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	ASSERT(spa_feature_is_active(dd->dd_pool->dp_spa,
 	    SPA_FEATURE_LIVELIST));
-	dsl_deadlist_open(&dd->dd_livelist, mos, obj);
+	int err = dsl_deadlist_open(&dd->dd_livelist, mos, obj);
+	if (err != 0)
+		return (err);
 	bplist_create(&dd->dd_pending_allocs);
 	bplist_create(&dd->dd_pending_frees);
+	return (0);
 }
 
 void
@@ -2489,6 +2491,5 @@ EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
 #endif
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zvol_enforce_quotas, INT, ZMOD_RW,
 	"Enable strict ZVOL quota enforcment");

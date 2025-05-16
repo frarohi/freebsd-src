@@ -187,6 +187,8 @@ typedef enum {
 	PJT_GETTHREADID_NP,
 	PJT_ATTR_GET_NP,
 	PJT_GETNAME_NP,
+	PJT_SUSPEND_ALL_NP,
+	PJT_RESUME_ALL_NP,
 	PJT_MAX
 } pjt_index_t;
 
@@ -343,6 +345,7 @@ struct __ucontext;
 struct __wrusage;
 enum idtype;
 
+int		__libc_execvpe(const char *, char * const *, char * const *);
 int		__libc_sigaction(int, const struct sigaction *,
 		    struct sigaction *) __hidden;
 int		__libc_sigprocmask(int, const __sigset_t *, __sigset_t *)

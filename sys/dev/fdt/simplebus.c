@@ -182,7 +182,8 @@ simplebus_attach(device_t dev)
 	if (rv != 0)
 		return (rv);
 
-	return (bus_generic_attach(dev));
+	bus_attach_children(dev);
+	return (0);
 }
 
 int
@@ -459,9 +460,6 @@ simplebus_alloc_resource(device_t bus, device_t child, int type, int *rid,
 		end = rle->end;
 		count = rle->count;
         }
-
-	if (type == SYS_RES_IOPORT)
-		type = SYS_RES_MEMORY;
 
 	if (type == SYS_RES_MEMORY) {
 		/* Remap through ranges property */

@@ -268,8 +268,8 @@ dpaa2_mc_attach(device_t dev)
 		dpaa2_mc_detach(dev);
 		return (ENXIO);
 	}
-	bus_generic_probe(dev);
-	bus_generic_attach(dev);
+	bus_identify_children(dev);
+	bus_attach_children(dev);
 
 	return (0);
 }
@@ -286,15 +286,13 @@ dpaa2_mc_detach(device_t dev)
 		return (error);
 
 	sc = device_get_softc(dev);
-	if (sc->rcdev)
-		device_delete_child(dev, sc->rcdev);
 	bus_release_resources(dev, dpaa2_mc_spec, sc->res);
 
 	dinfo = device_get_ivars(dev);
 	if (dinfo)
 		free(dinfo, M_DPAA2_MC);
 
-	return (device_delete_children(dev));
+	return (0);
 }
 
 /*

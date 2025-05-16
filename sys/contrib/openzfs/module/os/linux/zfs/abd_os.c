@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -701,6 +702,8 @@ abd_free_linear_page(abd_t *abd)
 	/* When backed by user page unmap it */
 	if (abd_is_from_pages(abd))
 		zfs_kunmap(sg_page(sg));
+	else
+		abd_update_scatter_stats(abd, ABDSTAT_DECR);
 
 	abd->abd_flags &= ~ABD_FLAG_LINEAR;
 	abd->abd_flags &= ~ABD_FLAG_LINEAR_PAGE;
@@ -1337,6 +1340,8 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 	return (io_size);
 }
 
+EXPORT_SYMBOL(abd_alloc_from_pages);
+
 /* Tunable Parameters */
 module_param(zfs_abd_scatter_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_enabled,
@@ -1344,7 +1349,6 @@ MODULE_PARM_DESC(zfs_abd_scatter_enabled,
 module_param(zfs_abd_scatter_min_size, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_min_size,
 	"Minimum size of scatter allocations.");
-/* CSTYLED */
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");

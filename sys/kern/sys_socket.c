@@ -87,7 +87,7 @@ static fo_rdwr_t soo_read;
 static fo_rdwr_t soo_write;
 static fo_ioctl_t soo_ioctl;
 static fo_poll_t soo_poll;
-extern fo_kqfilter_t soo_kqfilter;
+static fo_kqfilter_t soo_kqfilter;
 static fo_stat_t soo_stat;
 static fo_close_t soo_close;
 static fo_chmod_t soo_chmod;
@@ -96,7 +96,7 @@ static fo_aio_queue_t soo_aio_queue;
 
 static void	soo_aio_cancel(struct kaiocb *job);
 
-struct fileops	socketops = {
+const struct fileops socketops = {
 	.fo_read = soo_read,
 	.fo_write = soo_write,
 	.fo_truncate = invfo_truncate,
@@ -288,7 +288,15 @@ soo_poll(struct file *fp, int events, struct ucred *active_cred,
 	if (error)
 		return (error);
 #endif
-	return (sopoll(so, events, fp->f_cred, td));
+	return (so->so_proto->pr_sopoll(so, events, td));
+}
+
+static int
+soo_kqfilter(struct file *fp, struct knote *kn)
+{
+	struct socket *so = fp->f_data;
+
+	return (so->so_proto->pr_kqfilter(so, kn));
 }
 
 static int
@@ -802,15 +810,16 @@ soo_aio_cancel(struct kaiocb *job)
 static int
 soo_aio_queue(struct file *fp, struct kaiocb *job)
 {
-	struct socket *so;
+	struct socket *so = fp->f_data;
+
+	return (so->so_proto->pr_aio_queue(so, job));
+}
+
+int
+soaio_queue_generic(struct socket *so, struct kaiocb *job)
+{
 	struct sockbuf *sb;
 	sb_which which;
-	int error;
-
-	so = fp->f_data;
-	error = so->so_proto->pr_aio_queue(so, job);
-	if (error == 0)
-		return (0);
 
 	/* Lock through the socket, since this may be a listening socket. */
 	switch (job->uaiocb.aio_lio_opcode & (LIO_WRITE | LIO_READ)) {

@@ -355,11 +355,17 @@ proc_rwmem(struct proc *p, struct uio *uio)
 	/*
 	 * If we are writing, then we request vm_fault() to create a private
 	 * copy of each page.  Since these copies will not be writeable by the
-	 * process, we must explicity request that they be dirtied.
+	 * process, we must explicitly request that they be dirtied.
 	 */
 	writing = uio->uio_rw == UIO_WRITE;
 	reqprot = writing ? VM_PROT_COPY | VM_PROT_READ : VM_PROT_READ;
 	fault_flags = writing ? VM_FAULT_DIRTY : VM_FAULT_NORMAL;
+
+	if (writing) {
+		error = priv_check_cred(p->p_ucred, PRIV_PROC_MEM_WRITE);
+		if (error)
+			return (error);
+	}
 
 	/*
 	 * Only map in one page at a time.  We don't have to, but it
@@ -381,7 +387,7 @@ proc_rwmem(struct proc *p, struct uio *uio)
 		/*
 		 * How many bytes to copy
 		 */
-		len = min(PAGE_SIZE - page_offset, uio->uio_resid);
+		len = MIN(PAGE_SIZE - page_offset, uio->uio_resid);
 
 		/*
 		 * Fault and hold the page on behalf of the process.
@@ -924,12 +930,10 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
 	}
 
 	if (tid == 0) {
-		if ((p->p_flag & P_STOPPED_TRACE) != 0) {
-			KASSERT(p->p_xthread != NULL, ("NULL p_xthread"));
+		if ((p->p_flag & P_STOPPED_TRACE) != 0)
 			td2 = p->p_xthread;
-		} else {
+		if (td2 == NULL)
 			td2 = FIRST_THREAD_IN_PROC(p);
-		}
 		tid = td2->td_tid;
 	}
 
@@ -1162,7 +1166,8 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
 
 	case PT_GET_SC_ARGS:
 		CTR1(KTR_PTRACE, "PT_GET_SC_ARGS: pid %d", p->p_pid);
-		if ((td2->td_dbgflags & (TDB_SCE | TDB_SCX)) == 0
+		if (((td2->td_dbgflags & (TDB_SCE | TDB_SCX)) == 0 &&
+		     td2->td_sa.code == 0)
 #ifdef COMPAT_FREEBSD32
 		    || (wrap32 && !safe)
 #endif
@@ -1315,16 +1320,19 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
 
 		/*
 		 * Clear the pending event for the thread that just
-		 * reported its event (p_xthread).  This may not be
-		 * the thread passed to PT_CONTINUE, PT_STEP, etc. if
-		 * the debugger is resuming a different thread.
+		 * reported its event (p_xthread), if any.  This may
+		 * not be the thread passed to PT_CONTINUE, PT_STEP,
+		 * etc. if the debugger is resuming a different
+		 * thread.  There might be no reporting thread if
+		 * the process was just attached.
 		 *
 		 * Deliver any pending signal via the reporting thread.
 		 */
-		MPASS(p->p_xthread != NULL);
-		p->p_xthread->td_dbgflags &= ~TDB_XSIG;
-		p->p_xthread->td_xsig = data;
-		p->p_xthread = NULL;
+		if (p->p_xthread != NULL) {
+			p->p_xthread->td_dbgflags &= ~TDB_XSIG;
+			p->p_xthread->td_xsig = data;
+			p->p_xthread = NULL;
+		}
 		p->p_xsig = data;
 
 		/*
@@ -1375,6 +1383,10 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
 
 	case PT_IO:
 		piod = addr;
+		if (piod->piod_len > SSIZE_MAX) {
+			error = EINVAL;
+			goto out;
+		}
 		iov.iov_base = piod->piod_addr;
 		iov.iov_len = piod->piod_len;
 		uio.uio_offset = (off_t)(uintptr_t)piod->piod_offs;
@@ -1505,12 +1517,9 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
 		pl->pl_sigmask = td2->td_sigmask;
 		pl->pl_siglist = td2->td_siglist;
 		strcpy(pl->pl_tdname, td2->td_name);
-		if ((td2->td_dbgflags & (TDB_SCE | TDB_SCX)) != 0) {
+		if (td2->td_sa.code != 0) {
 			pl->pl_syscall_code = td2->td_sa.code;
 			pl->pl_syscall_narg = td2->td_sa.callp->sy_narg;
-		} else {
-			pl->pl_syscall_code = 0;
-			pl->pl_syscall_narg = 0;
 		}
 		CTR6(KTR_PTRACE,
     "PT_LWPINFO: tid %d (pid %d) event %d flags %#x child pid %d syscall %d",

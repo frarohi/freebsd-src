@@ -649,7 +649,7 @@ fm801_pci_attach(device_t dev)
 		goto oops;
 
 	fm801->radio = device_add_child(dev, "radio", DEVICE_UNIT_ANY);
-	bus_generic_attach(dev);
+	bus_attach_children(dev);
 
 	return 0;
 
@@ -676,12 +676,6 @@ fm801_pci_detach(device_t dev)
 	r = bus_generic_detach(dev);
 	if (r)
 		return r;
-	if (fm801->radio != NULL) {
-		r = device_delete_child(dev, fm801->radio);
-		if (r)
-			return r;
-		fm801->radio = NULL;
-	}
 
 	r = pcm_unregister(dev);
 	if (r)

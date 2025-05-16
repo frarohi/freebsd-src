@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -27,7 +28,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/off]
@@ -427,6 +427,10 @@ tags = ['functional', 'exec']
 tests = ['large_dnode_003_pos', 'large_dnode_004_neg',
     'large_dnode_005_pos', 'large_dnode_007_neg']
 tags = ['functional', 'features', 'large_dnode']
+
+[tests/functional/gang_blocks]
+tests = ['gang_blocks_001_pos']
+tags = ['functional', 'gang_blocks']
 
 [tests/functional/grow]
 pre =

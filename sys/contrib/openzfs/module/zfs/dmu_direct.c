@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -180,6 +181,7 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	if (list_next(&db->db_dirty_records, dr_head) != NULL)
 		zp.zp_nopwrite = B_FALSE;
 
+	ASSERT0(dr_head->dt.dl.dr_has_raw_params);
 	ASSERT3S(dr_head->dt.dl.dr_override_state, ==, DR_NOT_OVERRIDDEN);
 	dr_head->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
 
@@ -391,5 +393,5 @@ dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 }
 #endif /* _KERNEL */
 
-EXPORT_SYMBOL(dmu_read_uio_direct);
-EXPORT_SYMBOL(dmu_write_uio_direct);
+EXPORT_SYMBOL(dmu_read_abd);
+EXPORT_SYMBOL(dmu_write_abd);
